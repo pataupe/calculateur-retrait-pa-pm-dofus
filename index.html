@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulateur de retrait PA / PM</title>
+<meta name="description" content="Calcule tes chances de retirer des PA ou des PM à un adversaire dans Dofus.">
+<style>
+  :root {
+    --bg: #f6efdc;
+    --card: #fffaf0;
+    --ink: #2b2417;
+    --muted: #7a6c52;
+    --line: #e2d5b5;
+    --accent: #b5651d;
+    --pa: #2f7fbf;
+    --pm: #3a9a5b;
+    --bar-bg: #eadfc4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1710;
+      --card: #262017;
+      --ink: #f1e8d3;
+      --muted: #a89a7e;
+      --line: #3a3224;
+      --accent: #e0953f;
+      --pa: #5aa6e6;
+      --pm: #5cc47f;
+      --bar-bg: #3a3224;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+  .toggle button {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .toggle button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  input[type=number] {
+    width: 100%;
+    padding: 10px;
+    font: inherit;
+    font-size: 1.05rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  .row { display: grid; grid-template-columns: 5.5rem 1fr; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row .k { font-weight: 600; }
+  .vals { display: flex; justify-content: space-between; font-size: 0.95rem; gap: 8px; flex-wrap: wrap; }
+  .vals b { font-size: 1.1rem; }
+  .bar { height: 8px; background: var(--bar-bg); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--kind, var(--pa)); border-radius: 4px; }
+  .legend { color: var(--muted); font-size: 0.85rem; margin: 0 0 8px; }
+  .big { font-size: 1.05rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 6px 4px; border-top: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; border-top: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .note { color: var(--muted); font-size: 0.85rem; }
+  .clamped { color: var(--accent); }
+  .err { color: #c0392b; }
+  code { background: var(--bar-bg); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Simulateur de retrait PA / PM</h1>
+  <p class="sub">Entre ton retrait, l'esquive de l'adversaire et le nombre de points retirés par ton sort.</p>
+
+  <section class="card" aria-label="Paramètres">
+    <div class="toggle" role="group" aria-label="Type de retrait">
+      <button type="button" id="btn-pa" aria-pressed="true">Retrait PA</button>
+      <button type="button" id="btn-pm" aria-pressed="false">Retrait PM</button>
+    </div>
+    <div class="grid">
+      <div><label for="retrait">Ton retrait</label><input id="retrait" type="number" min="0" step="1" value="100" inputmode="numeric"></div>
+      <div><label for="esquive">Esquive de l'adversaire</label><input id="esquive" type="number" min="0" step="1" value="50" inputmode="numeric"></div>
+      <div><label for="retire" id="lbl-retire">PA retirés par le sort</label><input id="retire" type="number" min="1" max="20" step="1" value="3" inputmode="numeric"></div>
+      <div><label for="total" id="lbl-total">PA totaux de la cible</label><input id="total" type="number" min="1" step="1" value="6" inputmode="numeric"></div>
+      <div><label for="actuel" id="lbl-actuel">PA actuels de la cible</label><input id="actuel" type="number" min="0" step="1" value="6" inputmode="numeric"></div>
+    </div>
+    <p class="note" id="msg" role="status"></p>
+  </section>
+
+  <section class="card" aria-label="Résultats">
+    <h2>Tes chances</h2>
+    <p class="legend">« Au moins » : chance de retirer ce nombre de points ou plus. « Exactement » : chance de retirer pile ce nombre.</p>
+    <div id="results"></div>
+    <p class="big" id="expected"></p>
+  </section>
+
+  <section class="card" aria-label="Détail du calcul">
+    <h2>Détail du calcul, point par point</h2>
+    <table>
+      <thead><tr><th>Point</th><th class="num" id="th-cur">PA cible</th><th class="num">Score</th><th class="num">Chance (bornée)</th></tr></thead>
+      <tbody id="steps"></tbody>
+    </table>
+    <p class="note">
+      Formule : <code>50 × (retrait ÷ esquive) × (points actuels ÷ points totaux)</code>, bornée entre 10 % et 90 %.
+      Le calcul se fait point par point : chaque point retiré réduit les points actuels de la cible pour le point suivant.
+    </p>
+  </section>
+</main>
+
+<script src="retrait.js"></script>
+<script>
+(function () {
+  var kind = "PA";
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (p) {
+    var v = p * 100;
+    if (v > 0 && v < 0.1) return "<0,1 %";
+    return v.toFixed(1).replace(".", ",").replace(/,0$/, "") + " %";
+  };
+  var num = function (id) { return Number($(id).value); };
+
+  function render() {
+    var total = Math.max(1, Math.floor(num("total")) || 1);
+    var actuel = $("actuel").value === "" ? total : Math.floor(num("actuel"));
+    var retire = Math.min(20, Math.max(0, Math.floor(num("retire")) || 0));
+    var msgs = [];
+    if (actuel > total) { actuel = total; msgs.push(kind + " actuels ramenés au total."); }
+    if (actuel < 0 || isNaN(actuel)) actuel = 0;
+    if (retire > actuel && actuel >= 0 && retire > 0) msgs.push("La cible n'a que " + actuel + " " + kind + " : au-delà, aucun retrait possible.");
+    $("msg").textContent = msgs.join(" ");
+
+    var r = Retrait.simulate({
+      retrait: num("retrait"), esquive: num("esquive"),
+      retire: retire, total: total, actuel: actuel
+    });
+
+    var color = kind === "PA" ? "var(--pa)" : "var(--pm)";
+    var html = "";
+    for (var k = r.atLeast.length - 1; k >= 1; k--) {
+      html += row("Au moins " + k + " " + kind, r.atLeast[k], r.exact[k], color);
+    }
+    html += row("0 " + kind, r.exact[0], null, color);
+    $("results").innerHTML = html || "<p class='note'>Entre un nombre de points retirés ≥ 1.</p>";
+    $("expected").innerHTML = retire > 0
+      ? "En moyenne : <b>" + r.expected.toFixed(2).replace(".", ",") + " " + kind + "</b> retirés par lancer."
+      : "";
+
+    var rows = "";
+    r.steps.forEach(function (s) {
+      var clamped = isFinite(s.score) && s.proba * 100 !== s.score && s.proba > 0;
+      var score = !isFinite(s.score) ? "∞" : s.score.toFixed(1).replace(".", ",") + " %";
+      rows += "<tr><td>" + s.n + "</td><td class='num'>" + Math.max(0, s.courant) + " / " + total + "</td>" +
+        "<td class='num'>" + score + "</td>" +
+        "<td class='num" + (clamped ? " clamped" : "") + "'>" + fmt(s.proba) + "</td></tr>";
+    });
+    $("steps").innerHTML = rows;
+    $("th-cur").textContent = kind + " cible";
+  }
+
+  function row(label, main, exact, color) {
+    var pct = Math.round(main * 1000) / 10;
+    var vals = exact === null
+      ? "<span><b>" + fmt(main) + "</b> de ne rien retirer</span>"
+      : "<span>Au moins : <b>" + fmt(main) + "</b></span><span>Exactement : <b>" + fmt(exact) + "</b></span>";
+    return "<div class='row'><div class='k'>" + label + "</div><div><div class='vals'>" + vals +
+      "</div><div class='bar'><i style='width:" + pct + "%;--kind:" + color + "'></i></div></div></div>";
+  }
+
+  function setKind(k) {
+    kind = k;
+    $("btn-pa").setAttribute("aria-pressed", k === "PA");
+    $("btn-pm").setAttribute("aria-pressed", k === "PM");
+    $("lbl-retire").textContent = k + " retirés par le sort";
+    $("lbl-total").textContent = k + " totaux de la cible";
+    $("lbl-actuel").textContent = k + " actuels de la cible";
+    // valeurs par défaut courantes selon le type
+    var t = k === "PA" ? 6 : 3;
+    $("total").value = t;
+    $("actuel").value = t;
+    delete $("actuel").dataset.touched;
+    $("retire").value = k === "PA" ? 3 : 2;
+    render();
+  }
+
+  $("btn-pa").addEventListener("click", function () { setKind("PA"); });
+  $("btn-pm").addEventListener("click", function () { setKind("PM"); });
+  ["retrait", "esquive", "retire", "total", "actuel"].forEach(function (id) {
+    $(id).addEventListener("input", function () {
+      // garder « actuel » synchronisé avec « total » tant que l'utilisateur n'y a pas touché
+      if (id === "total" && !$("actuel").dataset.touched) $("actuel").value = $("total").value;
+      if (id === "actuel") $("actuel").dataset.touched = "1";
+      render();
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>
